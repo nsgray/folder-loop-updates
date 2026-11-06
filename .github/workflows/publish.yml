@@ -40,4 +40,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.release.outputs.version }}
         run: |
-          gh release create "v$VERSION" packages/FolderLoop-app.zip packages/FolderLoop-runtime.zip update.json "FolderLoop-Player-Windows-v$VERSION.zip" --title "Folder Loop $VERSION" --notes 'Standalone Windows player with signed in-app updates. Extract the full player ZIP for the first installation; use Check for updates afterward. Settings and saved media are preserved.' --latest
+          gh release create "v$VERSION" packages/FolderLoop-app.zip packages/FolderLoop-runtime.zip packages/FolderLoop-support.zip update.json "FolderLoop-Player-Windows-v$VERSION.zip" --title "Folder Loop $VERSION" --notes 'Standalone Windows player with signed in-app updates. Extract the full player ZIP for the first installation; use Check for updates afterward. Routine updates reuse existing playback libraries and download only the small app/support packages. Settings and saved media are preserved.' --latest

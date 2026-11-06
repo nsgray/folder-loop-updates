@@ -11,7 +11,7 @@ import urllib.request
 import zipfile
 
 PUBLIC_KEY = '18f63aa46547e93033e5004d033b739547de92d23f6436ca017744dc892d53f7'
-FILES = {'FolderLoop-app.zip', 'FolderLoop-runtime.zip', 'unsigned-update.json'}
+FILES = {'FolderLoop-app.zip', 'FolderLoop-runtime.zip', 'FolderLoop-support.zip', 'unsigned-update.json'}
 
 
 def digest(path):
@@ -37,7 +37,7 @@ def import_build():
     root = Path('packages')
     root.mkdir()
     with zipfile.ZipFile('bundle.zip') as archive:
-        assert len(archive.infolist()) == 3 and set(archive.namelist()) == FILES
+        assert len(archive.infolist()) == 4 and set(archive.namelist()) == FILES
         for item in archive.infolist():
             assert item.file_size < 1024 ** 3
             archive.extract(item, root)
@@ -53,6 +53,23 @@ def verify():
     Ed25519PublicKey.from_public_bytes(bytes.fromhex(PUBLIC_KEY)).verify(base64.b64decode(envelope['signature'], validate=True), payload)
     assert payload == Path('packages/unsigned-update.json').read_bytes(), 'Signature is for a different build'
     manifest = json.loads(payload)
+    for group in manifest['groups']:
+        support = group.get('support')
+        if support:
+            asset = support['asset']
+            assert asset['name'] == 'FolderLoop-support.zip'
+            path = Path('packages') / asset['name']
+            assert path.stat().st_size == asset['size'] and digest(path) == asset['sha256']
+            with zipfile.ZipFile(path) as archive:
+                assert len(archive.infolist()) == len(support['files']) and set(archive.namelist()) == set(support['files'])
+                for item in archive.infolist():
+                    info = support['files'][item.filename]
+                    assert group['files'][item.filename] == info and item.file_size == info['size']
+                    result = hashlib.sha256()
+                    with archive.open(item) as source:
+                        while block := source.read(1024 * 1024):
+                            result.update(block)
+                    assert result.hexdigest() == info['sha256']
     version = manifest['version']
     assert re.fullmatch(r'\d{1,4}\.\d{1,4}(?:\.\d{1,4})?', version)
     assert manifest['format'] == 1 and manifest['platform'] == 'windows-x64'
