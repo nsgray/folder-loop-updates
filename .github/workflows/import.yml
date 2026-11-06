@@ -1,0 +1,39 @@
+name: Import tested Windows build
+on:
+  workflow_dispatch:
+    inputs:
+      source_url:
+        description: Temporary download URL for the tested update-packages artifact
+        required: true
+        type: string
+      sha256:
+        description: Expected artifact ZIP SHA-256
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Import binary packages without executing them
+        env:
+          SOURCE_URL: ${{ inputs.source_url }}
+          EXPECTED_SHA256: ${{ inputs.sha256 }}
+        run: python release_tools.py import
+      - uses: actions/upload-artifact@v4
+        with:
+          name: import-${{ github.run_id }}
+          path: packages/
+          retention-days: 30
+      - name: Record manifest for offline signing
+        run: |
+          git config user.name 'Folder Loop releases'
+          git config user.email 'releases@users.noreply.github.com'
+          git add pending-update.json import.json
+          git commit -m 'Stage tested Windows build for release signing'
+          git push

@@ -1,0 +1,43 @@
+name: Publish signed Windows update
+on:
+  push:
+    paths: [update.json]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Locate imported build
+        id: imported
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          value = str(json.loads(Path('import.json').read_text())['run_id'])
+          assert value.isdecimal()
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('run_id=' + value + '\n')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: import-${{ steps.imported.outputs.run_id }}
+          run-id: ${{ steps.imported.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: packages
+      - run: python -m pip install cryptography==48.0.1
+      - name: Verify signature and build full player download
+        id: release
+        run: python release_tools.py verify
+      - name: Publish verified downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          gh release create "v$VERSION" packages/FolderLoop-app.zip packages/FolderLoop-runtime.zip update.json "FolderLoop-Player-Windows-v$VERSION.zip" --title "Folder Loop $VERSION" --notes 'Standalone Windows player with signed in-app updates. Extract the full player ZIP for the first installation; use Check for updates afterward. Settings and saved media are preserved.' --latest
